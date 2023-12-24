@@ -19,7 +19,7 @@ fluidPage(
     # Application title
     titlePanel("Next Word Predictor"),
 
-    # Sidebar with a slider input for number of bins
+    # Sidebar 
     sidebarLayout(
         sidebarPanel(
               h3("Instructions"),
