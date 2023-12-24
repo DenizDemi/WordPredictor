@@ -39,7 +39,7 @@ findinbigram <- function(w) {
 }
 
 retunigram <- function() {
-      return(sample(unimini[,word1], 1))
+      return(sample(unitable[,word1], 1))
       
 }
 
