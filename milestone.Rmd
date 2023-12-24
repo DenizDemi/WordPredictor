@@ -1,0 +1,231 @@
+---
+title: "Capstone Project Milestone Report"
+author: "Deniz D."
+date: "2023-12-12"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Overview
+This is the Milestone Report for the Data Science Capstone Project. For this project we are building a predictive model for text. The data for training the model is provided by SwiftKey and is available at:
+
+https://d396qusza40orc.cloudfront.net/dsscapstone/dataset/Coursera-SwiftKey.zip
+
+For this report the english data set is used. 
+
+In this report the english data sets for News, Twitter and Blogs are loaded, processed and analyzed. A sample data-set is extracted and tokenized, n-gram models are developed and investigated. 
+
+## Loading the Data
+
+First, we load the necessary libraries. For textual analysis **quanteda** package is used. For more information on quanteda please refer to https://quanteda.io/
+
+```{r echo=TRUE, message= FALSE}
+library(stringr)
+library(quanteda)
+library(quanteda.textplots)
+library(quanteda.textmodels)
+library(knitr)
+library(RColorBrewer)
+library(ggplot2)
+```
+
+
+Loading the english News data.
+
+```{r echo = TRUE}
+con <- file("final/en_US/en_US.news.txt", "r") 
+newstext <- readLines(con, encoding="utf-8")
+close(con)
+nlen <- length(newstext)
+nwords <- sum(str_count(newstext, '\\w+'))
+
+```
+
+Loading the english Twitter data. 
+
+```{r echo = TRUE, warning=FALSE}
+tcon <- file("final/en_US/en_US.twitter.txt", "r")
+twittext <- readLines(tcon, encoding="utf-8")
+close (tcon)
+tlen <- length(twittext)
+twords <- sum(str_count(twittext, '\\w+'))
+```
+
+Loading the english Blogs data.
+
+```{r echo = TRUE}
+bcon <- file("final/en_US/en_US.blogs.txt", "r")
+blogtext <- readLines(bcon, encoding="utf-8")
+close(bcon)
+blen <- length(blogtext)
+bwords <-  sum(str_count(blogtext, '\\w+'))
+```
+
+Summary information of the three files are in the table below. 
+
+```{r echo=TRUE}
+dfiles <- data.frame(lines = c(nlen, tlen, blen), 
+                     words = c(nwords, twords, bwords), 
+                     row.names = c("en_US.news.txt", "en_US.twitter.txt", "en_US.blogs.txt"))
+kable(dfiles)
+```
+## Creating the sample training set
+
+For our training data set we will only get a subset of News, Blogs and Twitter and combine them for efficiency. 
+
+```{r echo = TRUE}
+set.seed(12345)
+samplesize = 10000
+
+newssample <- sample(newstext, samplesize, replace = FALSE)
+blogsample <- sample(blogtext, samplesize, replace = FALSE)
+twitsample <- sample(twittext, samplesize, replace = FALSE)
+
+corpora <- corpus(c(newssample, blogsample, twitsample))
+```
+
+There are some bad words in the corpus, for identifying (and later removing) them we get the bad words list. 
+
+Bad words data:
+https://github.com/LDNOOBW/List-of-Dirty-Naughty-Obscene-and-Otherwise-Bad-Words/tree/master
+
+```{r echo = TRUE}
+badcon <- file("en.txt")
+badwords <- readLines(badcon, encoding="utf-8")
+close(badcon)
+```
+
+
+## Tokenize the sample set
+
+We tokanize the corpora, remove punctiation, symbols, numbers, url's, separators, stopwords and finally badwords. We also create a ***quandeta dfm*** object for our sample corpus with these tokens. Most frequent tokens and their frequencies are printed. 
+
+```{r echo = TRUE}
+tok <- tokens(corpora, remove_punct = TRUE, remove_symbols = TRUE,
+                 remove_numbers = TRUE, remove_url = TRUE, 
+                 remove_separators = TRUE)
+tok <- tokens_remove(tok, stopwords("english"))
+tok <- tokens_remove(tok, badwords)
+
+sampledfm <- dfm(tok, tolower = TRUE, remove_padding = TRUE)
+
+topfeatures(sampledfm)
+```
+
+
+## n-grams
+
+### unigram
+Unigrams are n-grams of size one. Here we will plot the top 10 most frequent single words based on our unigram. 
+
+```{r echo = TRUE}
+tokunigram <- tokens_ngrams(tok, n = 1, concatenator = " ")
+
+sampleunigram <- dfm(tokunigram)
+topuni <- topfeatures(sampleunigram, 100)
+
+topunidf <- data.frame(names = names(topuni[1:10]), freq = topuni[1:10])
+guni <- ggplot(topunidf, aes(x = reorder(topunidf$names, -topunidf$freq), y = topunidf$freq )) +
+      geom_bar(stat = "identity", fill = "blue") +
+      xlab("tokens") + ylab("frequency") + ggtitle("Top 10 in Unigram")
+
+guni
+```
+
+Wordcloud plot of the unigram which visualizes most frequent elements in larger size and different colors.  
+
+```{r echo = TRUE}
+textplot_wordcloud(sampleunigram, min_count = 10, rotation = 0.25,
+          color = RColorBrewer::brewer.pal(8,"Dark2"))
+```
+
+### bigram 
+Bigrams are n-grams of size two, meaning they store two consequtive words and their frequencies. The plot below shows most frequent word pairs. 
+
+```{r echo = TRUE}
+tokbigram <- tokens_ngrams(tok, n = 2, concatenator = " ")
+
+samplebigram <- dfm(tokbigram)
+topbi <- topfeatures(samplebigram, 100)
+
+
+topbidf <- data.frame(names = names(topbi[1:10]), freq = topbi[1:10])
+gbi <- ggplot(topbidf, aes(x = reorder(topbidf$names, -topbidf$freq), y = topbidf$freq )) +
+      geom_bar(stat = "identity", fill = "blue") +
+      xlab("tokens") + ylab("frequency") + ggtitle("Top 10 in Bigram")
+gbi
+```
+
+
+Wordcloud plot of the bigram visualizes the frequency of the word pairs in increasing font sizes and different colors. 
+
+```{r echo = TRUE}
+textplot_wordcloud(samplebigram, min_count = 30, rotation = 0.25,
+          color = RColorBrewer::brewer.pal(8,"Dark2"))
+```
+
+### trigram
+Trigram is a n-gram of size three and it stores three consequtive words and their frequencies. The bar plot below shows the most frequent three word sets.
+
+```{r echo = FALSE}
+toktrigram <- tokens_ngrams(tok, n = 3, concatenator = " ")
+
+sampletrigram <- dfm(toktrigram)
+toptri <- topfeatures(sampletrigram, 100)
+
+toptridf <- data.frame(names = names(toptri[1:10]), freq = toptri[1:10])
+gtri <- ggplot(toptridf, aes(x = reorder(toptridf$names, -toptridf$freq), y = toptridf$freq )) +
+      geom_bar(stat = "identity", fill = "blue") +
+      xlab("tokens") + ylab("frequency") + ggtitle("Top 10 in Trgram") +
+      theme(axis.text.x = element_text(hjust = 1, angle =  45))
+gtri
+```
+
+Wordcloud plot of the trigram visualizes the frequency of the three word sets in increasing size and different colors. 
+
+```{r echo = TRUE}
+textplot_wordcloud(sampletrigram, min_count = 8, rotation = 0.25,
+          color = RColorBrewer::brewer.pal(8,"Dark2"))
+
+```
+
+### Looking for next word
+
+Here is a sample look-up in our sample bigram for finding which three words come up mpst often after the word "new"
+
+```{r echo = TRUE}
+nextw <- dfm_select(samplebigram, pattern = "^new", selection = "keep",
+                    valuetype = "regex")
+
+head(topfeatures(nextw), 3)
+
+```
+
+
+For demonstration purposes we had excluded english stopwords from our analysis. We will include the stopwords in the final product. We can also sample the stopwords for suggesting next words when the word is unknown to our corpora. 
+Here is a sampling of three words from stopwords. which are the most commonly used words in english language. 
+
+```{r echo = TRUE}
+sample(stopwords(language = "en"), 3)
+```
+
+## Plans for next steps
+### A very simple approach
+A relatively simple preciction model can be developed the n-grams. When couple of letters are typed unigram can be used to look up top three matches. When a word is typed by the user bigram can bu used to look up the word and find out the top 3 words that follow that word. Similarly when two words are typed trigram can be used to look up and make suggestions accordingly. When the word is not found stopwords can be sampled and suggestions can be made accordingly. 
+
+The Data Set can be divided to training and test sets and the test set can be used to evaluate the performance. 
+
+### A more realistic approach
+Clearly the previous example is an overly simplified first attempt. For better accuracy and performance a more sophisticated approach is necessary. 
+Back-off models such as Katz's back-off model or preferably Kneser-Ney models are going to be used to utilize smoothing so that unknown words have probability greater then zero. 
+For more compact representation of data weighted finite-state automata or Markov Chains will be used. 
+
+For Katz's back-off model refer to: https://en.wikipedia.org/wiki/Katz%27s_back-off_model
+
+For Kneser-Ney smoothing refer to: https://en.wikipedia.org/wiki/Kneser%E2%80%93Ney_smoothing
+
+For Markov Chains refer to: https://en.wikipedia.org/wiki/Markov_chain
+
